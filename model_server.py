@@ -8,7 +8,7 @@ import time
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 MODEL_NAME = os.environ.get("CALLREDACT_WHISPER_MODEL", "small").strip() or "small"
 TMPDIR = os.environ.get("CALLREDACT_TMPDIR", "/dev/shm/callredact-vast")
@@ -221,10 +221,20 @@ def load_audio_slice(path, start, length):
     return np.frombuffer(p.stdout, dtype=np.int16).astype(np.float32) / 32768.0
 
 
+class ScanSource(BaseModel):
+    pbx_id: str = "unknown"
+    scan_id: int = 0
+    item_id: int = 0
+    uniqueid: str = ""
+    run_mode: str = "manual"
+
+
 class ScanPayload(BaseModel):
     audio_b64: str
     filename: str = "recording.bin"
     duration: float = 0.0
+    request_id: str = ""
+    source: ScanSource = Field(default_factory=ScanSource)
 
 
 app = FastAPI(title="CallRedact Vast model server", docs_url=None, redoc_url=None)
@@ -259,6 +269,11 @@ def health():
 def scan(payload: ScanPayload):
     if model is None:
         raise HTTPException(status_code=503, detail="Whisper model is not ready")
+    source = payload.source
+    print(
+        f"CALLREDACT_SCAN_START pbx_id={source.pbx_id[:64]} scan_id={source.scan_id} item_id={source.item_id} request_id={payload.request_id[:160]}",
+        flush=True,
+    )
     try:
         raw = base64.b64decode(payload.audio_b64, validate=True)
     except Exception:
@@ -307,6 +322,12 @@ def scan(payload: ScanPayload):
             "device": device_name,
             "model": MODEL_NAME,
             "transcripts_persisted": False,
+            "request_id": payload.request_id,
+            "source": {
+                "pbx_id": source.pbx_id,
+                "scan_id": source.scan_id,
+                "item_id": source.item_id,
+            },
         }
     except HTTPException:
         raise

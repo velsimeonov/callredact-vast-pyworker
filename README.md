@@ -154,3 +154,8 @@ Response schema:
   "transcripts_persisted": false
 }
 ```
+
+
+## Shared endpoint / multiple PBXs
+
+The same Serverless endpoint can serve many FreePBX systems. CallRedact v17.4.1 sends a `source` object (`pbx_id`, `scan_id`, `item_id`, `uniqueid`, `run_mode`) plus a `request_id`. The worker logs only safe source identifiers, echoes `request_id`, and still never returns or persists the Whisper transcript or detected card digits. Use a unique PBX identifier on each server and preferably a different restricted Vast API key on each PBX.
