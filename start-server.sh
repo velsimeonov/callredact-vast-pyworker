@@ -3,26 +3,31 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOG=/var/log/callredact-model.log
+PYDEPS="$ROOT/.pyworker-deps"
 mkdir -p /var/log
 : > "$LOG"
 
 find_python() {
   local c
-  for c in /app/.venv/bin/python /venv/bin/python python3 python; do
-    if command -v "$c" >/dev/null 2>&1; then
+  for c in \
+    /venv/main/bin/python \
+    /app/.venv/bin/python \
+    /venv/bin/python \
+    /usr/local/bin/python \
+    /usr/bin/python3 \
+    python3 \
+    python
+  do
+    if [ -x "$c" ] || command -v "$c" >/dev/null 2>&1; then
       if "$c" - <<'PY' >/dev/null 2>&1
 import torch, whisper
 PY
       then
-        command -v "$c"
-        return 0
-      fi
-    elif [ -x "$c" ]; then
-      if "$c" - <<'PY' >/dev/null 2>&1
-import torch, whisper
-PY
-      then
-        echo "$c"
+        if [ -x "$c" ]; then
+          echo "$c"
+        else
+          command -v "$c"
+        fi
         return 0
       fi
     fi
@@ -36,11 +41,21 @@ if [ -z "$PYTHON" ]; then
   exit 2
 fi
 
-echo "CALLREDACT_BOOT using Python: $PYTHON"
-"$PYTHON" -m pip install --disable-pip-version-check --no-cache-dir -q -r "$ROOT/requirements.txt"
+echo "CALLREDACT_BOOT using model Python: $PYTHON"
 
-# Start the private model backend first. It binds only localhost and never returns
-# transcripts/card digits to the Serverless client.
+# Keep PyWorker dependencies isolated from the vendor Whisper environment.
+# In particular, do not let pip upgrade/downgrade packages used by the stock
+# Whisper WebUI/API image (Gradio/Pillow/etc.).
+rm -rf "$PYDEPS"
+mkdir -p "$PYDEPS"
+"$PYTHON" -m pip install \
+  --disable-pip-version-check \
+  --no-cache-dir \
+  -q \
+  --target "$PYDEPS" \
+  -r "$ROOT/requirements.txt"
+
+# Start the private model backend using the untouched vendor environment.
 nohup "$PYTHON" -u -m uvicorn model_server:app \
   --app-dir "$ROOT" --host 127.0.0.1 --port 18000 \
   >>"$LOG" 2>&1 &
@@ -51,7 +66,9 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Start PyWorker immediately; it tails the model log and transitions the Vast
-# worker to ready after CALLREDACT_MODEL_READY and the benchmark complete.
+# PyWorker itself uses the isolated dependency directory. Vast injects the
+# Serverless worker environment (CONTAINER_ID, REPORT_ADDR, worker port, etc.)
+# when this script is launched as part of a managed Serverless worker startup.
+export PYTHONPATH="$PYDEPS${PYTHONPATH:+:$PYTHONPATH}"
 cd "$ROOT"
 exec "$PYTHON" -u worker.py

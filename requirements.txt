@@ -1,3 +1,1 @@
-vastai>=0.4.0
-fastapi>=0.115
-uvicorn>=0.30
+vastai>=1.5.5,<2
