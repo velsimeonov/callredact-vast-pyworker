@@ -1,0 +1,10 @@
+{
+  "name": "CallRedact Whisper Serverless",
+  "image": "vastai/whisper",
+  "tag": "1.0.8-cuda-12.9-py312",
+  "desc": "CallRedact privacy-preserving Whisper PAN/CVV scanner with Vast PyWorker",
+  "env": "-e PYWORKER_REPO=https://github.com/YOUR-ORG/callredact-vast-pyworker.git -e CALLREDACT_WHISPER_MODEL=small",
+  "runtype": "ssh",
+  "ssh_direct": true,
+  "onstart": "PASTE_THE_CONTENTS_OF_template-onstart.sh_HERE"
+}
