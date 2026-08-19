@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export WORKER_PORT="${WORKER_PORT:-3000}"
-
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOG=/var/log/callredact-model.log
+
+# Vast PyWorker's internal HTTP listener defaults to port 3000 in our setup.
+# Keep an explicit fallback here even when the template does not define
+# WORKER_PORT. Vast maps this internal port to VAST_TCP_PORT_3000 externally.
+export WORKER_PORT="${WORKER_PORT:-3000}"
 PYDEPS="$ROOT/.pyworker-deps"
 WHISPER_OVERLAY="$ROOT/.whisper-overlay"
 WHISPER_FIXED_VERSION="20250625"
@@ -47,6 +50,7 @@ if [ -z "$PYTHON" ]; then
 fi
 
 echo "CALLREDACT_BOOT using model Python: $PYTHON"
+echo "CALLREDACT_BOOT worker port: $WORKER_PORT"
 
 # ---------------------------------------------------------------------------
 # Whisper/Triton compatibility
