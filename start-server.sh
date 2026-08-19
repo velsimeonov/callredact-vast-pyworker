@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export WORKER_PORT="${WORKER_PORT:-3000}"
+
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOG=/var/log/callredact-model.log
 PYDEPS="$ROOT/.pyworker-deps"
