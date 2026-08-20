@@ -180,3 +180,18 @@ safely skips lifecycle destruction.
 
 After publishing this repository update, existing scale-to-zero workers must be
 terminated/recruited again so Vast clones the new repository revision.
+
+## Runner port restore (v1.1.3)
+
+Restores the Vast PyWorker listener port expected by the Serverless template:
+
+```bash
+export WORKER_PORT="${WORKER_PORT:-3000}"
+```
+
+The architecture intentionally uses two ports:
+
+- `3000/TCP` — Vast PyWorker/Serverless listener exposed by the template.
+- `127.0.0.1:18000` — private Uvicorn model backend used only inside the container.
+
+Do not move Uvicorn to port 3000; `worker.py` owns the Serverless listener and forwards `/scan` to the private model backend on port 18000.

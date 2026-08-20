@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Vast PyWorker listens on WORKER_PORT. The Serverless template exposes 3000/TCP.
+# Keep the model backend private on 127.0.0.1:18000; worker.py proxies /scan to it.
+export WORKER_PORT="${WORKER_PORT:-3000}"
+
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOG=/var/log/callredact-model.log
 PYDEPS="$ROOT/.pyworker-deps"
@@ -42,6 +46,7 @@ if [ -z "$PYTHON" ]; then
 fi
 
 echo "CALLREDACT_BOOT using model Python: $PYTHON"
+echo "CALLREDACT_BOOT worker port: $WORKER_PORT"
 
 # Keep PyWorker dependencies isolated from the vendor Whisper environment.
 # In particular, do not let pip upgrade/downgrade packages used by the stock
@@ -57,7 +62,7 @@ mkdir -p "$PYDEPS"
 
 # Start the private model backend using the untouched vendor environment.
 nohup "$PYTHON" -u -m uvicorn model_server:app \
-  --app-dir "$ROOT" --host 0.0.0.0 --port "$WORKER_PORT" \
+  --app-dir "$ROOT" --host 127.0.0.1 --port 18000 \
   >>"$LOG" 2>&1 &
 MODEL_PID=$!
 
