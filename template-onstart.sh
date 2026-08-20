@@ -5,6 +5,9 @@ set -euo pipefail
 WORK=/opt/callredact-pyworker
 BOOTLOG=/var/log/callredact-bootstrap.log
 
+# Required by the Vast Serverless PyWorker SDK. The template exposes 3000/TCP.
+export WORKER_PORT="${WORKER_PORT:-3000}"
+
 # Vast SSH/Jupyter launch modes replace the image ENTRYPOINT. This script is
 # intentionally short: fetch the PyWorker bundle and start it in the background,
 # then return so the Vast instance bootstrap can finish normally.

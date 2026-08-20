@@ -4,6 +4,11 @@ import io
 import os
 import wave
 
+# Vast Serverless SDK requires WORKER_PORT to resolve VAST_TCP_PORT_<port>.
+# Keep a Python-side fallback as defense-in-depth in case the launch wrapper
+# does not export it. The template exposes 3000/TCP.
+os.environ.setdefault("WORKER_PORT", "3000")
+
 from vastai import Worker, WorkerConfig, HandlerConfig, BenchmarkConfig, LogActionConfig
 
 MODEL_SERVER_URL = "http://127.0.0.1"

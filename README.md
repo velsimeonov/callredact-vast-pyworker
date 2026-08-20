@@ -159,3 +159,65 @@ Response schema:
 ## Shared endpoint / multiple PBXs
 
 The same Serverless endpoint can serve many FreePBX systems. CallRedact v17.4.1 sends a `source` object (`pbx_id`, `scan_id`, `item_id`, `uniqueid`, `run_mode`) plus a `request_id`. The worker logs only safe source identifiers, echoes `request_id`, and still never returns or persists the Whisper transcript or detected card digits. Use a unique PBX identifier on each server and preferably a different restricted Vast API key on each PBX.
+
+## Worker instance ownership reporting (v1.1.2)
+
+The model response now includes the exact Vast worker instance ID from the runtime
+`CONTAINER_ID` environment variable:
+
+```json
+{
+  "request_id": "...",
+  "instance_id": 48228230,
+  "source": {"pbx_id": "...", "scan_id": 47, "item_id": 123}
+}
+```
+
+CallRedact uses this value only for the exact correlated request and registers it in
+`callredact_vast_instances`. It never enumerates all workers attached to a shared
+endpoint. If `CONTAINER_ID` is absent, `instance_id` is returned as `null` and the PBX
+safely skips lifecycle destruction.
+
+After publishing this repository update, existing scale-to-zero workers must be
+terminated/recruited again so Vast clones the new repository revision.
+
+## Runner port restore (v1.1.3)
+
+Restores the Vast PyWorker listener port expected by the Serverless template:
+
+```bash
+export WORKER_PORT="${WORKER_PORT:-3000}"
+```
+
+The architecture intentionally uses two ports:
+
+- `3000/TCP` — Vast PyWorker/Serverless listener exposed by the template.
+- `127.0.0.1:18000` — private Uvicorn model backend used only inside the container.
+
+Do not move Uvicorn to port 3000; `worker.py` owns the Serverless listener and forwards `/scan` to the private model backend on port 18000.
+
+## Runner environment hardening (v1.1.4)
+
+The Vast Serverless SDK requires `WORKER_PORT` and uses it to resolve the
+provider-injected `VAST_TCP_PORT_<port>` value. v1.1.4 sets the required
+`WORKER_PORT=3000` in three places for defense-in-depth:
+
+- `template-onstart.sh` exports it before launching the bootstrap;
+- `start-server.sh` exports it and validates `VAST_TCP_PORT_3000`;
+- `worker.py` sets a Python fallback before constructing the Vast worker.
+
+The port architecture remains unchanged:
+
+- `3000/TCP` — Vast PyWorker/Serverless listener; the Vast template must expose it.
+- `127.0.0.1:18000` — private Uvicorn model backend; never expose or move this to 3000.
+
+A healthy worker should show both processes and ports:
+
+```bash
+ps aux | grep -E 'worker.py|uvicorn' | grep -v grep
+ss -lntp | grep -E '3000|18000'
+```
+
+Expected listeners are `0.0.0.0:3000` for PyWorker and `127.0.0.1:18000` for the
+model backend. If the Vast template does not inject `VAST_TCP_PORT_3000`, startup
+now fails immediately with a `CALLREDACT_BOOT_ERROR` explaining the template fix.
