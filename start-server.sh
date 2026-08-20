@@ -57,7 +57,7 @@ mkdir -p "$PYDEPS"
 
 # Start the private model backend using the untouched vendor environment.
 nohup "$PYTHON" -u -m uvicorn model_server:app \
-  --app-dir "$ROOT" --host 127.0.0.1 --port 18000 \
+  --app-dir "$ROOT" --host 0.0.0.0 --port "$WORKER_PORT" \
   >>"$LOG" 2>&1 &
 MODEL_PID=$!
 
