@@ -71,14 +71,41 @@ mkdir -p "$PYDEPS"
   --target "$PYDEPS" \
   -r "$ROOT/requirements.txt"
 
-
-# Apply Whisper Triton compatibility fix after dependencies are prepared.
-# Required for newer Triton versions used with Whisper word timestamps.
-if [ -f "$ROOT/patch_whisper_triton.py" ]; then
-  "$PYTHON" "$ROOT/patch_whisper_triton.py" || true
+# Apply the Whisper/Triton compatibility fix to the exact Whisper installation
+# used by the model Python. Fail before advertising the Serverless worker if the
+# compatibility step cannot be completed safely.
+if [ ! -f "$ROOT/patch_whisper_triton.py" ]; then
+  echo "CALLREDACT_BOOT_ERROR Missing $ROOT/patch_whisper_triton.py" >&2
+  exit 4
 fi
 
-# Start the private model backend using the untouched vendor environment.
+"$PYTHON" "$ROOT/patch_whisper_triton.py"
+
+# Log the model runtime versions. The known-good environment confirmed during
+# live testing was Python 3.12.13 / torch 2.7.1+cu128 / Triton 3.3.1 / CUDA 12.8.
+"$PYTHON" - <<'PY'
+import sys
+import torch
+import whisper
+
+try:
+    import triton
+    triton_version = triton.__version__
+except Exception as exc:
+    triton_version = f"unavailable ({type(exc).__name__}: {exc})"
+
+print(
+    "CALLREDACT_BOOT runtime "
+    f"python={sys.version.split()[0]} "
+    f"torch={torch.__version__} "
+    f"triton={triton_version} "
+    f"cuda={torch.version.cuda} "
+    f"whisper={whisper.__file__}",
+    flush=True,
+)
+PY
+
+# Start the private model backend using the vendor torch/Whisper environment.
 nohup "$PYTHON" -u -m uvicorn model_server:app \
   --app-dir "$ROOT" --host 127.0.0.1 --port 18000 \
   >>"$LOG" 2>&1 &
