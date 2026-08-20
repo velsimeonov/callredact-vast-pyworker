@@ -14,6 +14,21 @@ MODEL_NAME = os.environ.get("CALLREDACT_WHISPER_MODEL", "small").strip() or "sma
 TMPDIR = os.environ.get("CALLREDACT_TMPDIR", "/dev/shm/callredact-vast")
 MAX_UPLOAD = int(os.environ.get("CALLREDACT_MAX_UPLOAD", str(128 * 1024 * 1024)))
 
+# Bound each Whisper inference pass so long recordings do not create a single
+# large GPU/CPU workload. Values can be overridden from the Vast template.
+def _env_float(name, default, minimum, maximum):
+    try:
+        value = float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        value = float(default)
+    return max(float(minimum), min(float(maximum), value))
+
+
+CHUNK_SECONDS = _env_float("CALLREDACT_CHUNK_SECONDS", 120.0, 30.0, 300.0)
+CHUNK_OVERLAP = _env_float("CALLREDACT_CHUNK_OVERLAP", 10.0, 0.0, 30.0)
+if CHUNK_OVERLAP >= CHUNK_SECONDS:
+    CHUNK_OVERLAP = min(10.0, CHUNK_SECONDS / 4.0)
+
 
 def current_vast_instance_id():
     """Return the exact Vast worker instance ID injected into this container.
@@ -308,9 +323,14 @@ def scan(payload: ScanPayload):
     try:
         with open(path, "wb") as fh:
             fh.write(raw)
+        del raw
         duration = probe(path) or float(payload.duration or 0.0) or 300.0
-        chunk = 300.0
-        overlap = 20.0
+        chunk = CHUNK_SECONDS
+        overlap = CHUNK_OVERLAP
+        print(
+            f"CALLREDACT_SCAN_PLAN duration={duration:.1f}s chunk={chunk:.1f}s overlap={overlap:.1f}s",
+            flush=True,
+        )
         starts = []
         pos = 0.0
         while pos < duration:
@@ -322,8 +342,18 @@ def scan(payload: ScanPayload):
         all_findings = []
         for start in starts:
             length = min(chunk, duration - start)
+            print(
+                f"CALLREDACT_CHUNK_START start={start:.1f}s length={length:.1f}s",
+                flush=True,
+            )
             audio = load_audio_slice(path, start, length)
-            result = model.transcribe(audio, verbose=False, word_timestamps=True, temperature=0, fp16=True)
+            result = model.transcribe(
+                audio,
+                verbose=False,
+                word_timestamps=True,
+                temperature=0,
+                fp16=True,
+            )
             findings = detect_findings(result, length)
             offset = int(start * 1000)
             for finding in findings:
@@ -332,6 +362,17 @@ def scan(payload: ScanPayload):
                 finding["end_ms"] += offset
                 all_findings.append(finding)
             del audio, result
+            try:
+                import gc
+                import torch
+                gc.collect()
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            print(
+                f"CALLREDACT_CHUNK_DONE start={start:.1f}s length={length:.1f}s",
+                flush=True,
+            )
 
         return {
             "findings": merge_findings(all_findings),
@@ -350,7 +391,11 @@ def scan(payload: ScanPayload):
     except HTTPException:
         raise
     except Exception as exc:
-        print(f"CALLREDACT_MODEL_ERROR {type(exc).__name__}: {exc}", flush=True)
+        import traceback
+        print(
+            f"CALLREDACT_MODEL_ERROR {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+            flush=True,
+        )
         raise HTTPException(status_code=500, detail="remote scan failed")
     finally:
         try:

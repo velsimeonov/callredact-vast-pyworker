@@ -1,4 +1,4 @@
-# CallRedact Vast Serverless PyWorker
+# CallRedact Vast Serverless PyWorker v1.1.5
 
 This repository is the GPU-side companion for **Call Recording Redaction / FreePBX 17**.
 It turns a normal Vast.ai Serverless workergroup into a privacy-preserving Whisper scanner.
@@ -51,6 +51,9 @@ Environment variables:
 ```text
 PYWORKER_REPO=https://github.com/YOUR-ORG/callredact-vast-pyworker.git
 CALLREDACT_WHISPER_MODEL=small
+# Optional stability tuning for long recordings:
+CALLREDACT_CHUNK_SECONDS=120
+CALLREDACT_CHUNK_OVERLAP=10
 ```
 
 Do not put the Vast API key in the worker template. The FreePBX client authenticates to
@@ -221,3 +224,17 @@ ss -lntp | grep -E '3000|18000'
 Expected listeners are `0.0.0.0:3000` for PyWorker and `127.0.0.1:18000` for the
 model backend. If the Vast template does not inject `VAST_TCP_PORT_3000`, startup
 now fails immediately with a `CALLREDACT_BOOT_ERROR` explaining the template fix.
+
+## v1.1.5 stability hotfix
+
+This build keeps the Vast listener on port 3000 and the private model backend on
+127.0.0.1:18000. It adds bounded Whisper inference for real FPBX recordings:
+
+- default inference chunks reduced from 300 seconds to 120 seconds;
+- default overlap reduced from 20 seconds to 10 seconds;
+- decoded upload bytes are released after the temporary file is written;
+- Python garbage collection and `torch.cuda.empty_cache()` run after each chunk;
+- full traceback logging is emitted for `/scan` failures;
+- chunk start/completion messages are logged for crash diagnostics.
+
+The worker-port compatibility fix from v1.1.4 is retained unchanged.
