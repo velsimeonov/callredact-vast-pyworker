@@ -159,3 +159,24 @@ Response schema:
 ## Shared endpoint / multiple PBXs
 
 The same Serverless endpoint can serve many FreePBX systems. CallRedact v17.4.1 sends a `source` object (`pbx_id`, `scan_id`, `item_id`, `uniqueid`, `run_mode`) plus a `request_id`. The worker logs only safe source identifiers, echoes `request_id`, and still never returns or persists the Whisper transcript or detected card digits. Use a unique PBX identifier on each server and preferably a different restricted Vast API key on each PBX.
+
+## Worker instance ownership reporting (v1.1.2)
+
+The model response now includes the exact Vast worker instance ID from the runtime
+`CONTAINER_ID` environment variable:
+
+```json
+{
+  "request_id": "...",
+  "instance_id": 48228230,
+  "source": {"pbx_id": "...", "scan_id": 47, "item_id": 123}
+}
+```
+
+CallRedact uses this value only for the exact correlated request and registers it in
+`callredact_vast_instances`. It never enumerates all workers attached to a shared
+endpoint. If `CONTAINER_ID` is absent, `instance_id` is returned as `null` and the PBX
+safely skips lifecycle destruction.
+
+After publishing this repository update, existing scale-to-zero workers must be
+terminated/recruited again so Vast clones the new repository revision.
