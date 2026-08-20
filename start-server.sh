@@ -71,6 +71,13 @@ mkdir -p "$PYDEPS"
   --target "$PYDEPS" \
   -r "$ROOT/requirements.txt"
 
+
+# Apply Whisper Triton compatibility fix after dependencies are prepared.
+# Required for newer Triton versions used with Whisper word timestamps.
+if [ -f "$ROOT/patch_whisper_triton.py" ]; then
+  "$PYTHON" "$ROOT/patch_whisper_triton.py" || true
+fi
+
 # Start the private model backend using the untouched vendor environment.
 nohup "$PYTHON" -u -m uvicorn model_server:app \
   --app-dir "$ROOT" --host 127.0.0.1 --port 18000 \

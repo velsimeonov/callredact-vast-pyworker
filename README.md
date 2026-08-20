@@ -1,19 +1,15 @@
-CallRedact Vast PyWorker v1.1.6 Triton Hotfix
+# CallRedact Vast PyWorker v1.1.6 Whisper Triton Full Hotfix
 
-Problem:
-Whisper word_timestamps=True fails with newer Triton versions:
+Full replacement package (real files, no patch files).
 
-AttributeError:
-Cannot set attribute 'src' directly.
+Included changes:
+- Added patch_whisper_triton.py
+- Integrated automatic Triton compatibility fix into start-server.sh
+- Preserved WORKER_PORT=3000 serverless behavior
+- Preserved existing model_server.py and worker.py flow
 
-Fix:
-Patches whisper/triton_ops.py to use Triton's newer _unsafe_update_src API.
+Fixes:
+AttributeError: Cannot set attribute 'src' directly
 
-Apply:
-python tools/patch_whisper_triton.py
-
-Recommended:
-Run after dependency installation in start-server.sh/bootstrap.
-
-This package is an overlay hotfix and should be applied on top of the existing
-working v1.1.5 pyworker.
+Deployment:
+Replace repository contents with this package and rebuild the Vast template.
