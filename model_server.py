@@ -14,23 +14,6 @@ MODEL_NAME = os.environ.get("CALLREDACT_WHISPER_MODEL", "small").strip() or "sma
 TMPDIR = os.environ.get("CALLREDACT_TMPDIR", "/dev/shm/callredact-vast")
 MAX_UPLOAD = int(os.environ.get("CALLREDACT_MAX_UPLOAD", str(128 * 1024 * 1024)))
 
-
-def current_vast_instance_id():
-    """Return the exact Vast worker instance ID injected into this container.
-
-    Vast Serverless workers receive CONTAINER_ID in their runtime environment.
-    Returning only this self-reported ID preserves CallRedact's ownership rule:
-    never enumerate or destroy workers merely because they share an endpoint.
-    """
-    raw = (os.environ.get("CONTAINER_ID") or "").strip()
-    if not raw:
-        return None
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        return None
-    return value if value > 0 else None
-
 DIGITS = {
     "zero":"0","oh":"0","o":"0","one":"1","two":"2","three":"3","four":"4",
     "five":"5","six":"6","seven":"7","eight":"8","nine":"9",
@@ -288,7 +271,7 @@ def scan(payload: ScanPayload):
         raise HTTPException(status_code=503, detail="Whisper model is not ready")
     source = payload.source
     print(
-        f"CALLREDACT_SCAN_START pbx_id={source.pbx_id[:64]} scan_id={source.scan_id} item_id={source.item_id} request_id={payload.request_id[:160]} instance_id={current_vast_instance_id() or 'missing'}",
+        f"CALLREDACT_SCAN_START pbx_id={source.pbx_id[:64]} scan_id={source.scan_id} item_id={source.item_id} request_id={payload.request_id[:160]}",
         flush=True,
     )
     try:
@@ -340,7 +323,6 @@ def scan(payload: ScanPayload):
             "model": MODEL_NAME,
             "transcripts_persisted": False,
             "request_id": payload.request_id,
-            "instance_id": current_vast_instance_id(),
             "source": {
                 "pbx_id": source.pbx_id,
                 "scan_id": source.scan_id,
