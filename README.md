@@ -1,4 +1,4 @@
-# CallRedact Vast PyWorker v1.1.7 — Whisper/Triton Compatibility
+# CallRedact Vast PyWorker v1.1.10 — Whisper/Triton Compatibility
 
 Complete replacement package. No `.patch` files are required.
 
@@ -54,3 +54,10 @@ Typical lines:
 
 Replace the repository contents with the files in this package, commit/push,
 then let the Vast template clone the repository normally.
+
+
+## v1.1.10
+
+- Added explicit request/model diagnostics before Whisper model selection.
+- Health endpoint now reports the active loaded model instead of startup default.
+- Improved debugging for Serverless model switching and request metadata.

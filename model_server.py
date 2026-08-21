@@ -317,11 +317,20 @@ def load_model():
 
 @app.get("/health")
 def health():
-    return {"ok": model is not None, "model": MODEL_NAME, "gpu": device_name}
+    return {"ok": model is not None, "model": CURRENT_MODEL_NAME, "gpu": device_name}
 
 
 @app.post("/scan")
 def scan(payload: ScanPayload):
+    print(
+        f"CALLREDACT_REQUEST model={str(payload.model or MODEL_NAME)} "
+        f"current={CURRENT_MODEL_NAME} "
+        f"request_id={payload.request_id} "
+        f"pbx_id={payload.source.pbx_id} "
+        f"scan_id={payload.source.scan_id} "
+        f"item_id={payload.source.item_id}",
+        flush=True,
+    )
     try:
         load_requested_model(payload.model)
     except Exception as exc:
