@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 MODEL_NAME = os.environ.get("CALLREDACT_WHISPER_MODEL", "small").strip() or "small"
+CURRENT_MODEL_NAME = MODEL_NAME
 TMPDIR = os.environ.get("CALLREDACT_TMPDIR", "/dev/shm/callredact-vast")
 MAX_UPLOAD = int(os.environ.get("CALLREDACT_MAX_UPLOAD", str(128 * 1024 * 1024)))
 
@@ -266,6 +267,7 @@ class ScanPayload(BaseModel):
     filename: str = "recording.bin"
     duration: float = 0.0
     request_id: str = ""
+    model: str = ""
     source: ScanSource = Field(default_factory=ScanSource)
 
 
@@ -273,6 +275,27 @@ app = FastAPI(title="CallRedact Vast model server", docs_url=None, redoc_url=Non
 model = None
 device_name = "cuda"
 
+
+
+def load_requested_model(requested):
+    """Load requested Whisper model if it differs from the current one."""
+    global model, device_name, CURRENT_MODEL_NAME
+    name = str(requested or CURRENT_MODEL_NAME or MODEL_NAME).strip().lower() or "small"
+    allowed = {"tiny","base","small","medium","large","large-v2","large-v3"}
+    if name not in allowed:
+        name = "small"
+    if model is not None and name == CURRENT_MODEL_NAME:
+        return
+    import torch
+    import whisper
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is not available")
+    device_name = torch.cuda.get_device_name(0)
+    started = time.time()
+    print(f"CALLREDACT_MODEL_INFO loading Whisper {name} on {device_name}", flush=True)
+    model = whisper.load_model(name, device="cuda", download_root="/root/.cache/whisper")
+    CURRENT_MODEL_NAME = name
+    print(f"CALLREDACT_MODEL_READY model={name} gpu={device_name} load_seconds={time.time()-started:.1f}", flush=True)
 
 @app.on_event("startup")
 def load_model():
@@ -299,6 +322,10 @@ def health():
 
 @app.post("/scan")
 def scan(payload: ScanPayload):
+    try:
+        load_requested_model(payload.model)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Whisper model load failed: {exc}")
     if model is None:
         raise HTTPException(status_code=503, detail="Whisper model is not ready")
     source = payload.source
