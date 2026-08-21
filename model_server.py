@@ -333,6 +333,10 @@ def scan(payload: ScanPayload):
     )
     try:
         load_requested_model(payload.model)
+        print(
+            f"CALLREDACT_MODEL_ACTIVE requested={str(payload.model or MODEL_NAME)} current={CURRENT_MODEL_NAME}",
+            flush=True,
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Whisper model load failed: {exc}")
     if model is None:

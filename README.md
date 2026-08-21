@@ -1,3 +1,8 @@
+## v1.1.11
+
+- Added explicit active model observability after model selection.
+- Improved debugging of requested vs loaded Whisper model.
+
 # CallRedact Vast PyWorker v1.1.10 — Whisper/Triton Compatibility
 
 Complete replacement package. No `.patch` files are required.

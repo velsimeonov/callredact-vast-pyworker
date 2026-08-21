@@ -16,6 +16,8 @@ MODEL_SERVER_PORT = 18000
 MODEL_LOG_FILE = "/var/log/callredact-model.log"
 
 
+# CALLREDACT_MODEL_FORWARD: model is forwarded from CallRedact payload to model_server
+
 def benchmark_payload():
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wav:
